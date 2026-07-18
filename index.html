@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMap - Định hướng nghề nghiệp cá nhân hóa</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#1a1a1a',
+        secondary: '#404040',
+        accent: '#2563eb',
+        muted: '#737373',
+        surface: '#f5f5f5',
+        border: '#e5e5e5'
+      },
+      borderRadius: {
+        'sm': '4px',
+        'md': '6px',
+        'lg': '8px'
+      }
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+* { font-family: 'Inter', system-ui, sans-serif; }
+.fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.slide-in { animation: slideIn 0.3s ease-out; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+.progress-bar { transition: width 0.4s ease; }
+.option-card { transition: all 0.15s ease; cursor: pointer; }
+.option-card:hover { border-color: #2563eb; background: #eff6ff; }
+.option-card.selected { border-color: #2563eb; background: #eff6ff; }
+.btn-primary { background: #1a1a1a; color: white; transition: all 0.15s; border: none; cursor: pointer; }
+.btn-primary:hover { background: #404040; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary { background: white; color: #1a1a1a; border: 1px solid #e5e5e5; transition: all 0.15s; cursor: pointer; }
+.btn-secondary:hover { background: #f5f5f5; }
+.pulse-dot { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+<base target="_blank">
+</head>
+<body class="bg-white min-h-screen">
+
+<header class="border-b border-border sticky top-0 bg-white z-50">
+  <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 bg-primary rounded-sm flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      </div>
+      <span class="font-semibold text-primary text-sm tracking-tight">CareerMap</span>
+    </div>
+    <div id="progress-container" class="hidden flex items-center gap-2">
+      <span class="text-xs text-muted" id="progress-text">Bước 1/4</span>
+      <div class="w-24 h-1.5 bg-border rounded-sm overflow-hidden">
+        <div id="progress-bar" class="h-full bg-primary progress-bar rounded-sm" style="width: 25%"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main-content" class="max-w-2xl mx-auto px-4 py-6"></main>
+
+<script>
+// ===================== CONFIG =====================
+// API endpoint - gọi proxy nội bộ thay vì OpenRouter trực tiếp
+const API_ENDPOINT = '/api/analyze';
+
+// ===================== STATE =====================
+const state = {
+  step: 1,
+  userType: null,
+  experienceLevel: null,
+  location: null,
+  industry: null,
+  industryUnknown: false,
+  answers: [],
+  currentQuestionIndex: 0,
+  result: null,
+  saved: false,
+  aiUsed: false
+};
+
+// ===================== DATA =====================
+const provinces = [
+  'Hà Nội','TP. Hồ Chí Minh','Đà Nẵng','Hải Phòng','Cần Thơ','An Giang','Bà Rịa - Vũng Tàu',
+  'Bắc Giang','Bắc Kạn','Bạc Liêu','Bắc Ninh','Bến Tre','Bình Định','Bình Dương','Bình Phước',
+  'Bình Thuận','Cà Mau','Cao Bằng','Đắk Lắk','Đắk Nông','Điện Biên','Đồng Nai','Đồng Tháp',
+  'Gia Lai','Hà Giang','Hà Nam','Hà Tĩnh','Hải Dương','Hậu Giang','Hòa Bình','Hưng Yên',
+  'Khánh Hòa','Kiên Giang','Kon Tum','Lai Châu','Lâm Đồng','Lạng Sơn','Lào Cai','Long An',
+  'Nam Định','Nghệ An','Ninh Bình','Ninh Thuận','Phú Thọ','Phú Yên','Quảng Bình','Quảng Nam',
+  'Quảng Ngãi','Quảng Ninh','Quảng Trị','Sóc Trăng','Sơn La','Tây Ninh','Thái Bình','Thái Nguyên',
+  'Thanh Hóa','Thừa Thiên Huế','Tiền Giang','Trà Vinh','Tuyên Quang','Vĩnh Long','Vĩnh Phúc','Yên Bái'
+];
+
+const industries = [
+  { id: 'cntt', name: 'Công nghệ thông tin / Phần mềm', traits: { analytical: 0.9, creative: 0.6, organized: 0.5, social: 0.3 } },
+  { id: 'marketing', name: 'Marketing / Truyền thông', traits: { analytical: 0.5, creative: 0.9, organized: 0.6, social: 0.8 } },
+  { id: 'taichinh', name: 'Tài chính / Ngân hàng / Kế toán', traits: { analytical: 0.9, creative: 0.3, organized: 0.9, social: 0.5 } },
+  { id: 'yduoc', name: 'Y tế / Dược / Chăm sóc sức khỏe', traits: { analytical: 0.8, creative: 0.4, organized: 0.7, social: 0.9 } },
+  { id: 'giaoduc', name: 'Giáo dục / Đào tạo', traits: { analytical: 0.6, creative: 0.6, organized: 0.7, social: 0.9 } },
+  { id: 'xaydung', name: 'Xây dựng / Kiến trúc / BĐS', traits: { analytical: 0.7, creative: 0.7, organized: 0.8, social: 0.4 } },
+  { id: 'sanxuat', name: 'Sản xuất / Công nghiệp', traits: { analytical: 0.6, creative: 0.4, organized: 0.9, social: 0.3 } },
+  { id: 'logistics', name: 'Logistics / Vận tải / Chuỗi cung ứng', traits: { analytical: 0.7, creative: 0.3, organized: 0.9, social: 0.5 } },
+  { id: 'fnb', name: 'Ẩm thực / Nhà hàng / Khách sạn', traits: { analytical: 0.3, creative: 0.7, organized: 0.7, social: 0.9 } },
+  { id: 'thoitrang', name: 'Thời trang / Thiết kế', traits: { analytical: 0.4, creative: 0.9, organized: 0.5, social: 0.6 } },
+  { id: 'luat', name: 'Luật / Pháp lý', traits: { analytical: 0.9, creative: 0.4, organized: 0.9, social: 0.6 } },
+  { id: 'nongnghiep', name: 'Nông nghiệp / Lâm nghiệp / Thủy sản', traits: { analytical: 0.5, creative: 0.5, organized: 0.6, social: 0.4 } },
+  { id: 'nghethuat', name: 'Nghệ thuật / Giải trí / Truyền hình', traits: { analytical: 0.3, creative: 0.9, organized: 0.3, social: 0.7 } },
+  { id: 'khoahoc', name: 'Nghiên cứu khoa học / R&D', traits: { analytical: 0.9, creative: 0.7, organized: 0.6, social: 0.3 } },
+  { id: 'hanhchinh', name: 'Hành chính công / Công chức', traits: { analytical: 0.6, creative: 0.3, organized: 0.9, social: 0.7 } },
+  { id: 'banhang', name: 'Bán hàng / Kinh doanh / B2B', traits: { analytical: 0.5, creative: 0.6, organized: 0.6, social: 0.9 } },
+  { id: 'nhansu', name: 'Nhân sự / Tuyển dụng', traits: { analytical: 0.5, creative: 0.5, organized: 0.8, social: 0.9 } },
+  { id: 'cokhi', name: 'Cơ khí / Tự động hóa', traits: { analytical: 0.8, creative: 0.5, organized: 0.8, social: 0.3 } }
+];
+
+const staticQuestions = [
+  {
+    id: 'sq1',
+    text: 'Khi làm việc nhóm, bạn thường đóng vai trò nào?',
+    options: [
+      { text: 'Người lên kế hoạch, phân công và theo dõi tiến độ', trait: 'organized', weight: 1 },
+      { text: 'Người đưa ra ý tưởng mới, cách tiếp cận sáng tạo', trait: 'creative', weight: 1 },
+      { text: 'Người phân tích dữ liệu, đánh giá các phương án logic', trait: 'analytical', weight: 1 },
+      { text: 'Người điều phối, lắng nghe và kết nối các thành viên', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq2',
+    text: 'Bạn thích môi trường làm việc như thế nào?',
+    options: [
+      { text: 'Nơi có quy trình rõ ràng, mục tiêu cụ thể từng ngày', trait: 'organized', weight: 1 },
+      { text: 'Nơi cho phép tự do thử nghiệm, không bị ràng buộc quy tắc cứng nhắc', trait: 'creative', weight: 1 },
+      { text: 'Nơi đặt câu hỏi, giải quyết vấn đề phức tạp bằng dữ liệu', trait: 'analytical', weight: 1 },
+      { text: 'Nơi giao tiếp nhiều, xây dựng mối quan hệ với mọi người', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq3',
+    text: 'Khi đối mặt với một quyết định khó, bạn thường?',
+    options: [
+      { text: 'Lập danh sách ưu/nhược điểm và chọn theo kế hoạch dài hạn', trait: 'organized', weight: 1 },
+      { text: 'Tin vào trực giác và chọn con đường ít người đi nhất', trait: 'creative', weight: 1 },
+      { text: 'Thu thập thông tin, phân tích rủi ro trước khi quyết định', trait: 'analytical', weight: 1 },
+      { text: 'Hỏi ý kiến người thân, cân nhắc cảm xúc của mọi người', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq4',
+    text: 'Bạn cảm thấy hứng thú nhất khi?',
+    options: [
+      { text: 'Hoàn thành một dự án đúng hạn, mọi thứ ngăn nắp', trait: 'organized', weight: 1 },
+      { text: 'Tạo ra sản phẩm/ý tưởng mà trước đó chưa ai nghĩ đến', trait: 'creative', weight: 1 },
+      { text: 'Tìm ra nguyên nhân gốc rễ của một vấn đề phức tạp', trait: 'analytical', weight: 1 },
+      { text: 'Giúp đỡ ai đó vượt qua khó khăn và đạt được mục tiêu', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq5',
+    text: 'Trong thời gian rảnh, bạn thường?',
+    options: [
+      { text: 'Lên lịch cho tuần tới, sắp xếp lại không gian sống', trait: 'organized', weight: 1 },
+      { text: 'Thử một sở thích mới, khám phá nơi chưa từng đến', trait: 'creative', weight: 1 },
+      { text: 'Đọc sách chuyên sâu, xem tài liệu khoa học', trait: 'analytical', weight: 1 },
+      { text: 'Gặp gỡ bạn bè, tham gia hoạt động cộng đồng', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq6',
+    text: 'Bạn đánh giá cao điều gì ở một người thành công?',
+    options: [
+      { text: 'Khả năng quản lý thời gian và tài nguyên hiệu quả', trait: 'organized', weight: 1 },
+      { text: 'Tầm nhìn độc đáo và dám phá vỡ quy tắc', trait: 'creative', weight: 1 },
+      { text: 'Tư duy logic, ra quyết định dựa trên bằng chứng', trait: 'analytical', weight: 1 },
+      { text: 'Kỹ năng giao tiếp, xây dựng được mạng lưới quan hệ', trait: 'social', weight: 1 }
+    ]
+  },
+  {
+    id: 'sq7',
+    text: 'Nếu được chọn một kỹ năng để phát triển mạnh nhất?',
+    options: [
+      { text: 'Quản lý dự án, tổ chức và lập kế hoạch chi tiết', trait: 'organized', weight: 1 },
+      { text: 'Sáng tạo nội dung, thiết kế hoặc viết lách', trait: 'creative', weight: 1 },
+      { text: 'Phân tích dữ liệu, lập trình hoặc nghiên cứu', trait: 'analytical', weight: 1 },
+      { text: 'Đàm phán, thuyết phục và làm việc nhóm', trait: 'social', weight: 1 }
+    ]
+  }
+];
+
+function generateDynamicQuestions(location, industryId) {
+  const industryName = industries.find(i => i.id === industryId)?.name || 'ngành này';
+  return [
+    {
+      id: 'dq1',
+      text: `Gần đây tại ${location}, bạn có nhận thấy nhiều cơ hội việc làm mới trong lĩnh vực ${industryName.split('/')[0].trim()} không?`,
+      options: [
+        { text: 'Rất nhiều, liên tục thấy tin tuyển dụng', value: 3 },
+        { text: 'Có, nhưng không quá nhiều', value: 2 },
+        { text: 'Ít thay đổi so với trước', value: 1 },
+        { text: 'Không để ý / Không rõ', value: 0 }
+      ]
+    },
+    {
+      id: 'dq2',
+      text: `Theo quan sát của bạn, mức lương khởi điểm tại ${location} cho ${industryName.split('/')[0].trim()} so với các ngành khác?`,
+      options: [
+        { text: 'Cao hơn trung bình', value: 3 },
+        { text: 'Tương đương mặt bằng chung', value: 2 },
+        { text: 'Thấp hơn một chút nhưng ổn định', value: 1 },
+        { text: 'Không có thông tin', value: 0 }
+      ]
+    },
+    {
+      id: 'dq3',
+      text: `Bạn bè/người quen tại ${location} có xu hướng chuyển sang làm ${industryName.split('/')[0].trim()} không?`,
+      options: [
+        { text: 'Có, nhiều người đang học/chuyển sang', value: 3 },
+        { text: 'Một số người quan tâm', value: 2 },
+        { text: 'Ít, hầu hết giữ nguyên ngành cũ', value: 1 },
+        { text: 'Không biết', value: 0 }
+      ]
+    },
+    {
+      id: 'dq4',
+      text: `Tại ${location}, bạn đánh giá mức độ cạnh tranh khi xin việc trong ${industryName.split('/')[0].trim()}?`,
+      options: [
+        { text: 'Rất cao, cần nhiều kinh nghiệm mới được nhận', value: 1 },
+        { text: 'Cao nhưng cơ hội vẫn có cho người giỏi', value: 2 },
+        { text: 'Trung bình, cân bằng giữa cung và cầu', value: 3 },
+        { text: 'Thấp, đang thiếu nhân lực', value: 3 }
+      ]
+    },
+    {
+      id: 'dq5',
+      text: `Bạn nghĩ ${industryName.split('/')[0].trim()} tại ${location} trong 3-5 năm tới sẽ?`,
+      options: [
+        { text: 'Tăng trưởng mạnh, nhiều cơ hội mới', value: 3 },
+        { text: 'Phát triển ổn định, không biến động lớn', value: 2 },
+        { text: 'Cạnh tranh gay gắt hơn, cần nâng cấp kỹ năng', value: 1 },
+        { text: 'Khó đoán, phụ thuộc nhiều yếu tố', value: 1 }
+      ]
+    }
+  ];
+}
+
+// ===================== RENDER HELPERS =====================
+const main = document.getElementById('main-content');
+const progressBar = document.getElementById('progress-bar');
+const progressText = document.getElementById('progress-text');
+const progressContainer = document.getElementById('progress-container');
+
+function updateProgress(step) {
+  const pct = step === 1 ? 0 : step === 2 ? 25 : step === 3 ? 50 : step === 4 ? 75 : 100;
+  progressBar.style.width = pct + '%';
+  progressText.textContent = `Bước ${step}/4`;
+  if (step > 1 && step < 5) progressContainer.classList.remove('hidden');
+  else progressContainer.classList.add('hidden');
+}
+
+// ===================== STEP 1 =====================
+function renderStep1() {
+  updateProgress(1);
+  main.innerHTML = `
+    <div class="fade-in max-w-lg mx-auto">
+      <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold text-primary mb-2">Định hướng nghề nghiệp cá nhân hóa</h1>
+        <p class="text-muted text-sm">Khám phá ngành nghề phù hợp với bạn chỉ trong 5 phút</p>
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-semibold text-primary mb-3">Bạn thuộc nhóm nào?</label>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="selectUserType('student')" class="option-card border border-border rounded-md p-4 text-left ${state.userType === 'student' ? 'selected' : 'bg-white'}">
+            <div class="w-10 h-10 bg-surface rounded-sm flex items-center justify-center mb-3">
+              <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+            </div>
+            <div class="font-semibold text-sm text-primary">Học sinh cấp 3</div>
+            <div class="text-xs text-muted mt-1">Đang chọn ngành, chọn trường</div>
+          </button>
+          <button onclick="selectUserType('job_seeker')" class="option-card border border-border rounded-md p-4 text-left ${state.userType === 'job_seeker' ? 'selected' : 'bg-white'}">
+            <div class="w-10 h-10 bg-surface rounded-sm flex items-center justify-center mb-3">
+              <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div class="font-semibold text-sm text-primary">Người tìm việc</div>
+            <div class="text-xs text-muted mt-1">Đã đi làm hoặc muốn chuyển ngành</div>
+          </button>
+        </div>
+      </div>
+      <div class="mb-8">
+        <label class="block text-sm font-semibold text-primary mb-3">Mức độ kinh nghiệm của bạn?</label>
+        <div class="space-y-2">
+          ${[
+            { val: 'none', label: 'Chưa có kinh nghiệm', desc: 'Chưa từng đi làm thêm hoặc thực tập' },
+            { val: 'part_time', label: 'Kinh nghiệm làm thêm / thực tập', desc: 'Đã từng làm part-time, intern hoặc project nhỏ' },
+            { val: 'experienced', label: 'Đã có kinh nghiệm làm việc chính thức', desc: 'Từng làm full-time từ 1 năm trở lên' }
+          ].map(opt => `
+            <button onclick="selectExp('${opt.val}')" class="option-card w-full border border-border rounded-md p-3 text-left flex items-start gap-3 ${state.experienceLevel === opt.val ? 'selected' : 'bg-white'}">
+              <div class="w-4 h-4 rounded-full border-2 ${state.experienceLevel === opt.val ? 'border-accent bg-accent' : 'border-muted'} mt-0.5 flex-shrink-0"></div>
+              <div>
+                <div class="font-medium text-sm text-primary">${opt.label}</div>
+                <div class="text-xs text-muted">${opt.desc}</div>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      <button onclick="goToStep2()" class="btn-primary w-full py-3 rounded-md font-medium text-sm" ${!state.userType || !state.experienceLevel ? 'disabled' : ''}>Tiếp tục</button>
+    </div>
+  `;
+}
+function selectUserType(type) { state.userType = type; renderStep1(); }
+function selectExp(level) { state.experienceLevel = level; renderStep1(); }
+function goToStep2() { if (!state.userType || !state.experienceLevel) return; state.step = 2; renderStep2(); }
+
+// ===================== STEP 2 =====================
+function renderStep2() {
+  updateProgress(2);
+  main.innerHTML = `
+    <div class="fade-in max-w-lg mx-auto">
+      <div class="mb-6">
+        <button onclick="backToStep1()" class="btn-secondary px-3 py-1.5 rounded-md text-xs font-medium mb-4">← Quay lại</button>
+        <h2 class="text-xl font-bold text-primary">Định vị & Mục tiêu</h2>
+        <p class="text-sm text-muted mt-1">Thông tin này giúp chúng tôi cá nhân hóa kết quả cho bạn</p>
+      </div>
+      <div class="mb-5">
+        <label class="block text-sm font-semibold text-primary mb-2">Địa điểm <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <input type="text" id="location-input" value="${state.location || ''}" placeholder="Nhập tỉnh/thành phố..." 
+            class="w-full border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-primary"
+            oninput="filterProvinces(this.value)" onclick="showProvinceList()">
+          <div id="province-list" class="hidden absolute z-10 w-full bg-white border border-border rounded-md mt-1 max-h-48 overflow-y-auto shadow-sm"></div>
+        </div>
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-semibold text-primary mb-2">Ngành nghề</label>
+        <div class="relative">
+          <input type="text" id="industry-input" value="${state.industry ? industries.find(i => i.id === state.industry)?.name : ''}" placeholder="Tìm ngành nghề..." 
+            class="w-full border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-primary ${state.industryUnknown ? 'opacity-50' : ''}"
+            oninput="filterIndustries(this.value)" onclick="showIndustryList()" ${state.industryUnknown ? 'disabled' : ''}>
+          <div id="industry-list" class="hidden absolute z-10 w-full bg-white border border-border rounded-md mt-1 max-h-48 overflow-y-auto shadow-sm"></div>
+        </div>
+        <label class="flex items-center gap-2 mt-3 cursor-pointer">
+          <input type="checkbox" id="industry-unknown" ${state.industryUnknown ? 'checked' : ''} onchange="toggleIndustryUnknown()" class="w-4 h-4 rounded border-border">
+          <span class="text-sm text-primary">Tôi chưa biết mình hợp ngành gì</span>
+        </label>
+      </div>
+      <button onclick="goToStep3()" class="btn-primary w-full py-3 rounded-md font-medium text-sm" ${!state.location ? 'disabled' : ''}>Bắt đầu bài khảo sát</button>
+    </div>
+  `;
+}
+function backToStep1() { state.step = 1; renderStep1(); }
+function filterProvinces(query) {
+  const list = document.getElementById('province-list');
+  const filtered = provinces.filter(p => p.toLowerCase().includes(query.toLowerCase()));
+  if (filtered.length === 0) { list.classList.add('hidden'); return; }
+  list.innerHTML = filtered.map(p => `<div onclick="selectProvince('${p}')" class="px-3 py-2 text-sm hover:bg-surface cursor-pointer border-b border-border last:border-0">${p}</div>`).join('');
+  list.classList.remove('hidden');
+}
+function showProvinceList() {
+  const list = document.getElementById('province-list');
+  list.innerHTML = provinces.map(p => `<div onclick="selectProvince('${p}')" class="px-3 py-2 text-sm hover:bg-surface cursor-pointer border-b border-border last:border-0">${p}</div>`).join('');
+  list.classList.remove('hidden');
+}
+function selectProvince(p) {
+  state.location = p;
+  document.getElementById('location-input').value = p;
+  document.getElementById('province-list').classList.add('hidden');
+  document.querySelector('button[onclick="goToStep3()"]').disabled = false;
+}
+function filterIndustries(query) {
+  const list = document.getElementById('industry-list');
+  const filtered = industries.filter(i => i.name.toLowerCase().includes(query.toLowerCase()));
+  if (filtered.length === 0) { list.classList.add('hidden'); return; }
+  list.innerHTML = filtered.map(i => `<div onclick="selectIndustry('${i.id}')" class="px-3 py-2 text-sm hover:bg-surface cursor-pointer border-b border-border last:border-0">${i.name}</div>`).join('');
+  list.classList.remove('hidden');
+}
+function showIndustryList() {
+  const list = document.getElementById('industry-list');
+  list.innerHTML = industries.map(i => `<div onclick="selectIndustry('${i.id}')" class="px-3 py-2 text-sm hover:bg-surface cursor-pointer border-b border-border last:border-0">${i.name}</div>`).join('');
+  list.classList.remove('hidden');
+}
+function selectIndustry(id) {
+  state.industry = id; state.industryUnknown = false;
+  document.getElementById('industry-input').value = industries.find(i => i.id === id).name;
+  document.getElementById('industry-list').classList.add('hidden');
+  document.getElementById('industry-unknown').checked = false;
+  document.getElementById('industry-input').disabled = false;
+  document.getElementById('industry-input').classList.remove('opacity-50');
+}
+function toggleIndustryUnknown() {
+  state.industryUnknown = document.getElementById('industry-unknown').checked;
+  const input = document.getElementById('industry-input');
+  if (state.industryUnknown) { state.industry = null; input.value = ''; input.disabled = true; input.classList.add('opacity-50'); }
+  else { input.disabled = false; input.classList.remove('opacity-50'); }
+}
+function goToStep3() { if (!state.location) return; state.step = 3; state.currentQuestionIndex = 0; state.answers = []; renderStep3(); }
+
+// ===================== STEP 3 =====================
+function getAllQuestions() {
+  const dynamic = state.industry ? generateDynamicQuestions(state.location, state.industry) : [];
+  return [...staticQuestions, ...dynamic];
+}
+function renderStep3() {
+  updateProgress(3);
+  const allQuestions = getAllQuestions();
+  const q = allQuestions[state.currentQuestionIndex];
+  const isStatic = state.currentQuestionIndex < staticQuestions.length;
+  const progress = Math.round(((state.currentQuestionIndex + 1) / allQuestions.length) * 100);
+  main.innerHTML = `
+    <div class="slide-in max-w-lg mx-auto">
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-muted">${isStatic ? 'Phần 1: Tính cách & Điểm mạnh' : 'Phần 2: Dò la thực địa'}</span>
+          <span class="text-xs font-medium text-primary">${state.currentQuestionIndex + 1}/${allQuestions.length}</span>
+        </div>
+        <div class="w-full h-1.5 bg-border rounded-sm overflow-hidden">
+          <div class="h-full bg-primary progress-bar rounded-sm" style="width: ${progress}%"></div>
+        </div>
+      </div>
+      <div class="mb-6">
+        <h3 class="text-base font-semibold text-primary leading-relaxed">${q.text}</h3>
+      </div>
+      <div class="space-y-2 mb-6">
+        ${q.options.map((opt, idx) => `
+          <button onclick="selectAnswer(${idx})" class="option-card w-full border border-border rounded-md p-3.5 text-left bg-white">
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded-full border-2 border-muted flex-shrink-0 mt-0.5 flex items-center justify-center option-ring">
+                <div class="w-2.5 h-2.5 rounded-full bg-accent hidden option-dot"></div>
+              </div>
+              <span class="text-sm text-primary leading-relaxed">${opt.text}</span>
+            </div>
+          </button>
+        `).join('')}
+      </div>
+      <div class="flex gap-3">
+        ${state.currentQuestionIndex > 0 ? `<button onclick="prevQuestion()" class="btn-secondary px-4 py-2.5 rounded-md text-sm font-medium">Quay lại</button>` : ''}
+        <button onclick="nextQuestion()" id="btn-next-q" class="btn-primary flex-1 py-2.5 rounded-md text-sm font-medium" disabled>Tiếp theo</button>
+      </div>
+    </div>
+  `;
+}
+let selectedOptionIndex = null;
+function selectAnswer(idx) {
+  selectedOptionIndex = idx;
+  document.querySelectorAll('.option-card').forEach((el, i) => {
+    const ring = el.querySelector('.option-ring');
+    const dot = el.querySelector('.option-dot');
+    if (i === idx) { el.classList.add('selected'); ring.classList.remove('border-muted'); ring.classList.add('border-accent'); dot.classList.remove('hidden'); }
+    else { el.classList.remove('selected'); ring.classList.add('border-muted'); ring.classList.remove('border-accent'); dot.classList.add('hidden'); }
+  });
+  document.getElementById('btn-next-q').disabled = false;
+}
+function nextQuestion() {
+  if (selectedOptionIndex === null) return;
+  const allQuestions = getAllQuestions();
+  const q = allQuestions[state.currentQuestionIndex];
+  state.answers.push({ questionId: q.id, selectedOption: selectedOptionIndex, timestamp: Date.now() });
+  selectedOptionIndex = null;
+  if (state.currentQuestionIndex < allQuestions.length - 1) { state.currentQuestionIndex++; renderStep3(); }
+  else { goToProcessing(); }
+}
+function prevQuestion() {
+  if (state.currentQuestionIndex > 0) { state.currentQuestionIndex--; state.answers.pop(); selectedOptionIndex = null; renderStep3(); }
+}
+
+// ===================== AI PROCESSING =====================
+function goToProcessing() {
+  state.step = 3.5;
+  renderProcessing();
+  callAI();
+}
+
+function renderProcessing() {
+  updateProgress(3);
+  main.innerHTML = `
+    <div class="fade-in max-w-lg mx-auto text-center py-12">
+      <div class="flex justify-center gap-2 mb-6">
+        <div class="w-3 h-3 bg-primary rounded-full pulse-dot" style="animation-delay: 0s"></div>
+        <div class="w-3 h-3 bg-primary rounded-full pulse-dot" style="animation-delay: 0.2s"></div>
+        <div class="w-3 h-3 bg-primary rounded-full pulse-dot" style="animation-delay: 0.4s"></div>
+      </div>
+      <h3 class="text-lg font-semibold text-primary mb-2">Đang phân tích bằng AI...</h3>
+      <p class="text-sm text-muted max-w-xs mx-auto">Hệ thống đang đánh giá tính cách, thị trường địa phương và xây dựng bản đồ hành động phù hợp nhất cho bạn.</p>
+      <p class="text-xs text-muted mt-4" id="ai-status">Kết nối đến AI engine...</p>
+    </div>
+  `;
+}
+
+function buildAIPrompt() {
+  const allQuestions = getAllQuestions();
+  const staticAns = state.answers.filter(a => a.questionId.startsWith('sq')).map(a => {
+    const q = staticQuestions.find(q => q.id === a.questionId);
+    return { question: q.text, answer: q.options[a.selectedOption].text, trait: q.options[a.selectedOption].trait };
+  });
+  const dynamicAns = state.answers.filter(a => a.questionId.startsWith('dq')).map(a => {
+    const qs = generateDynamicQuestions(state.location, state.industry);
+    const q = qs.find(q => q.id === a.questionId);
+    return { question: q.text, answer: q.options[a.selectedOption].text, value: q.options[a.selectedOption].value };
+  });
+
+  const industryList = industries.map(i => `- ${i.name}: tổ chức=${i.traits.organized}, sáng tạo=${i.traits.creative}, phân tích=${i.traits.analytical}, xã hội=${i.traits.social}`).join('\n');
+
+  return `Bạn là chuyên gia tư vấn định hướng nghề nghiệp cấp cao tại Việt Nam. Dựa trên dữ liệu người dùng sau, hãy phân tích chuyên sâu và trả về KẾT QUẢ DUY NHẤT DƯỚI DẠNG JSON. Không thêm markdown, không thêm giải thích ngoài JSON.
+
+## THÔNG TIN NGƯỜI DÙNG
+- Nhóm: ${state.userType === 'student' ? 'Học sinh cấp 3' : 'Người tìm việc'}
+- Kinh nghiệm: ${state.experienceLevel === 'none' ? 'Chưa có' : state.experienceLevel === 'part_time' ? 'Làm thêm/Thực tập' : 'Đã đi làm chính thức'}
+- Địa điểm: ${state.location}
+- Ngành đã chọn: ${state.industry ? industries.find(i => i.id === state.industry)?.name : 'Chưa biết'}
+
+## CÂU TRẢ LỜI TÍNH CÁCH (7 câu)
+${staticAns.map((a, i) => `${i+1}. ${a.question}\n   → Trả lời: "${a.answer}" (trục: ${a.trait})`).join('\n')}
+
+## CÂU TRẢ LỜI THỰC ĐỊA (5 câu)
+${dynamicAns.map((a, i) => `${i+1}. ${a.question}\n   → Trả lời: "${a.answer}" (điểm: ${a.value}/3)`).join('\n')}
+
+## DANH MỤC NGÀNH THAM KHẢO (với trọng số 4 trục tính cách)
+${industryList}
+
+## YÊU CẦU OUTPUT JSON
+{
+  "matchScore": <số 0-100, độ phù hợp ngành đã chọn nếu có>,
+  "topIndustries": [
+    {"id": "<id>", "name": "<tên đầy đủ>", "matchScore": <0-100>, "reason": "<lý do ngắn gọn 1 câu>"}
+  ],
+  "realityScore": <số 0-100>,
+  "realityLabel": "<chỉ được: Tăng trưởng tốt | Ổn định | Cần thận trọng>",
+  "realityAnalysis": "<phân tích thực tế thị trường tại địa phương, 2-3 câu>",
+  "personalityBreakdown": {
+    "organized": <số 0-100>,
+    "creative": <số 0-100>,
+    "analytical": <số 0-100>,
+    "social": <số 0-100>
+  },
+  "actionPlan": {
+    "title": "<tiêu đề lộ trình>",
+    "items": ["<bước 1>", "<bước 2>", "<bước 3>", "<bước 4>"]
+  },
+  "overallAnalysis": "<phân tích tổng quan 3-4 câu, thực tế và động viên>"
+}
+
+Quy tắc:
+- topIndustries tối đa 3 ngành, sắp xếp giảm dần matchScore.
+- Nếu user chưa chọn ngành, matchScore = 0 và topIndustries là gợi ý.
+- realityScore dựa trên câu trả lời thực địa + nhận định thị trường thực tế tại ${state.location}.
+- Phân tích phải thực tế, gắn với bối cảnh Việt Nam, không chung chung.`;
+}
+
+async function callAI() {
+  const statusEl = document.getElementById('ai-status');
+  try {
+    statusEl.textContent = 'Đang gửi dữ liệu đến AI engine...';
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'Bạn là chuyên gia định hướng nghề nghiệp. Chỉ trả về JSON hợp lệ, không thêm text khác.' },
+          { role: 'user', content: buildAIPrompt() }
+        ],
+        temperature: 0.4,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Empty AI response');
+
+    statusEl.textContent = 'Đang xử lý kết quả...';
+
+    let aiResult;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      aiResult = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+    } catch (e) {
+      throw new Error('Invalid JSON from AI: ' + e.message);
+    }
+
+    if (!aiResult.topIndustries || !Array.isArray(aiResult.topIndustries) || aiResult.topIndustries.length === 0) {
+      throw new Error('Missing topIndustries');
+    }
+
+    state.result = {
+      matchScore: aiResult.matchScore ?? 0,
+      selectedMatch: state.industry ? { ...industries.find(i => i.id === state.industry), matchScore: aiResult.matchScore ?? 0 } : null,
+      topIndustries: aiResult.topIndustries.map(t => ({ id: t.id || '', name: t.name || '', matchScore: t.matchScore || 0, reason: t.reason || '' })),
+      realityPct: aiResult.realityScore ?? 50,
+      realityLabel: aiResult.realityLabel || 'Ổn định',
+      realityColor: getRealityColor(aiResult.realityLabel),
+      realityAnalysis: aiResult.realityAnalysis || '',
+      traits: {
+        organized: (aiResult.personalityBreakdown?.organized ?? 25) / 100,
+        creative: (aiResult.personalityBreakdown?.creative ?? 25) / 100,
+        analytical: (aiResult.personalityBreakdown?.analytical ?? 25) / 100,
+        social: (aiResult.personalityBreakdown?.social ?? 25) / 100
+      },
+      actionPlan: {
+        title: aiResult.actionPlan?.title || 'Bản đồ hành động',
+        items: aiResult.actionPlan?.items || []
+      },
+      overallAnalysis: aiResult.overallAnalysis || ''
+    };
+    state.aiUsed = true;
+    state.step = 4;
+    renderStep4();
+
+  } catch (err) {
+    console.error('AI Error:', err);
+    statusEl.textContent = 'AI gặp lỗi, đang chuyển sang chế độ phân tích cục bộ...';
+    setTimeout(() => {
+      calculateFallback();
+      state.step = 4;
+      renderStep4();
+    }, 1500);
+  }
+}
+
+function getRealityColor(label) {
+  if (label.includes('Tăng trưởng')) return 'text-green-600 bg-green-50';
+  if (label.includes('thận trọng')) return 'text-amber-600 bg-amber-50';
+  return 'text-blue-600 bg-blue-50';
+}
+
+// ===================== FALLBACK CALCULATION =====================
+function calculateFallback() {
+  const traits = { organized: 0, creative: 0, analytical: 0, social: 0 };
+  staticQuestions.forEach((q) => {
+    const ans = state.answers.find(a => a.questionId === q.id);
+    if (ans) { const opt = q.options[ans.selectedOption]; traits[opt.trait] += opt.weight; }
+  });
+  const total = Object.values(traits).reduce((a, b) => a + b, 0);
+  if (total > 0) Object.keys(traits).forEach(k => traits[k] = traits[k] / total);
+
+  const matches = industries.map(ind => {
+    let score = 0;
+    score += traits.organized * (ind.traits.organized || 0);
+    score += traits.creative * (ind.traits.creative || 0);
+    score += traits.analytical * (ind.traits.analytical || 0);
+    score += traits.social * (ind.traits.social || 0);
+    return { ...ind, matchScore: Math.round(score * 100) };
+  }).sort((a, b) => b.matchScore - a.matchScore);
+
+  let realityScore = 0;
+  const dynamicAnswers = state.answers.filter(a => a.questionId.startsWith('dq'));
+  dynamicAnswers.forEach(a => {
+    const q = generateDynamicQuestions(state.location, state.industry).find(q => q.id === a.questionId);
+    if (q) realityScore += q.options[a.selectedOption].value;
+  });
+  const maxReality = dynamicAnswers.length * 3;
+  const realityPct = maxReality > 0 ? Math.round((realityScore / maxReality) * 100) : 50;
+
+  let realityLabel, realityColor;
+  if (realityPct >= 70) { realityLabel = 'Tăng trưởng tốt'; realityColor = 'text-green-600 bg-green-50'; }
+  else if (realityPct >= 45) { realityLabel = 'Ổn định'; realityColor = 'text-blue-600 bg-blue-50'; }
+  else { realityLabel = 'Cần thận trọng'; realityColor = 'text-amber-600 bg-amber-50'; }
+
+  const selectedMatch = state.industry ? matches.find(m => m.id === state.industry) : null;
+  const topIndustries = matches.slice(0, 3).map(m => ({ ...m, reason: '' }));
+  const isStudent = state.userType === 'student';
+  const actionPlan = isStudent ? {
+    title: 'Lộ trình cho học sinh',
+    items: [
+      `Tìm hiểu điểm chuẩn các trường đào tạo ${selectedMatch?.name || topIndustries[0].name} tại ${state.location} và các tỉnh lân cận`,
+      'Rèn luyện nền tảng: Tiếng Anh (IELTS 6.5+), Tin học văn phòng thành thạo',
+      'Tham gia các câu lạc bộ học thuật hoặc cuộc thi liên quan để xây dựng portfolio',
+      'Tìm cơ hội job shadowing hoặc phỏng vấn người đang làm trong ngành'
+    ]
+  } : {
+    title: 'Lộ trình cho người đi làm',
+    items: [
+      `Đánh giá kỹ năng hiện tại so với JD phổ biến của ${selectedMatch?.name || topIndustries[0].name}`,
+      'Đăng ký khóa học nâng cấp kỹ năng chuyên môn trên Coursera/Udemy',
+      'Tham gia hội nhóm ngành trên LinkedIn và Facebook để cập nhật trend',
+      'Xây dựng portfolio cá nhân hoặc GitHub (nếu ngành kỹ thuật)'
+    ]
+  };
+
+  state.result = {
+    matchScore: selectedMatch?.matchScore || 0,
+    selectedMatch,
+    topIndustries,
+    realityPct,
+    realityLabel,
+    realityColor,
+    realityAnalysis: '',
+    traits,
+    actionPlan,
+    overallAnalysis: ''
+  };
+  state.aiUsed = false;
+}
+
+// ===================== STEP 4 =====================
+function renderStep4() {
+  updateProgress(4);
+  const r = state.result;
+  const isStudent = state.userType === 'student';
+  const aiBadge = state.aiUsed ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-accent/10 text-accent">AI Powered</span>` : `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-surface text-muted">Local</span>`;
+
+  main.innerHTML = `
+    <div class="fade-in max-w-lg mx-auto">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h2 class="text-xl font-bold text-primary">${state.aiUsed ? 'Kết quả sau khi phân tích bằng AI' : 'Kết quả sau khi thuật toán tính toán'}</h2>
+        <p class="text-sm text-muted mt-1">${state.location} · ${isStudent ? 'Học sinh' : 'Người tìm việc'}${aiBadge}</p>
+      </div>
+
+      ${r.overallAnalysis ? `
+        <div class="border border-border rounded-md p-4 mb-4 bg-white">
+          <p class="text-sm text-primary leading-relaxed">${r.overallAnalysis}</p>
+        </div>
+      ` : ''}
+
+      <div class="border border-border rounded-md p-5 mb-4 bg-white">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          </div>
+          <h3 class="font-semibold text-primary">Góc Bản Thân</h3>
+        </div>
+        ${r.selectedMatch ? `
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm text-primary">Độ phù hợp với <strong>${r.selectedMatch.name}</strong></span>
+              <span class="text-lg font-bold text-primary">${r.matchScore}%</span>
+            </div>
+            <div class="w-full h-2.5 bg-border rounded-sm overflow-hidden">
+              <div class="h-full bg-primary rounded-sm" style="width: ${r.matchScore}%"></div>
+            </div>
+          </div>
+        ` : `<p class="text-sm text-muted mb-4">Bạn chưa chọn ngành cụ thể. Dưới đây là 3 ngành phù hợp nhất với bạn:</p>`}
+        <div class="space-y-3">
+          ${r.topIndustries.map((ind, idx) => `
+            <div class="flex items-center gap-3 p-3 bg-surface rounded-sm">
+              <div class="w-7 h-7 bg-white border border-border rounded-sm flex items-center justify-center text-xs font-bold text-primary">${idx + 1}</div>
+              <div class="flex-1">
+                <div class="text-sm font-medium text-primary">${ind.name}</div>
+                ${ind.reason ? `<div class="text-xs text-muted mt-0.5">${ind.reason}</div>` : ''}
+                <div class="w-full h-1.5 bg-border rounded-sm mt-1.5 overflow-hidden">
+                  <div class="h-full bg-secondary rounded-sm" style="width: ${ind.matchScore}%"></div>
+                </div>
+              </div>
+              <span class="text-sm font-semibold text-primary">${ind.matchScore}%</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="mt-4 pt-4 border-t border-border">
+          <div class="text-xs font-medium text-muted mb-2">Phân bổ tính cách</div>
+          <div class="grid grid-cols-2 gap-2">
+            ${[
+              { label: 'Tổ chức & Lãnh đạo', val: Math.round(r.traits.organized * 100) },
+              { label: 'Sáng tạo & Thẩm mỹ', val: Math.round(r.traits.creative * 100) },
+              { label: 'Phân tích & Nghiên cứu', val: Math.round(r.traits.analytical * 100) },
+              { label: 'Kết nối & Hỗ trợ', val: Math.round(r.traits.social * 100) }
+            ].map(t => `
+              <div class="text-center p-2 bg-white border border-border rounded-sm">
+                <div class="text-lg font-bold text-primary">${t.val}%</div>
+                <div class="text-xs text-muted">${t.label}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="border border-border rounded-md p-5 mb-4 bg-white">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <h3 class="font-semibold text-primary">Góc Thực Tế Thị Trường</h3>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+          <div class="flex-1">
+            <div class="text-sm text-muted mb-1">Sức khỏe ngành tại ${state.location}</div>
+            <div class="text-2xl font-bold text-primary">${r.realityPct}<span class="text-sm text-muted font-normal">/100</span></div>
+          </div>
+          <span class="px-3 py-1.5 rounded-sm text-xs font-semibold ${r.realityColor}">${r.realityLabel}</span>
+        </div>
+        ${r.realityAnalysis ? `<p class="text-sm text-primary leading-relaxed mb-3">${r.realityAnalysis}</p>` : ''}
+        <div class="space-y-2 text-sm">
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-primary">Nhu cầu tuyển dụng ${r.realityPct >= 60 ? 'đang tăng' : 'ổn định'} theo dữ liệu địa phương</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span class="text-primary">Rủi ro tự động hóa: Trung bình (cần cập nhật kỹ năng liên tục)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="border border-border rounded-md p-5 mb-6 bg-white">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+          </div>
+          <h3 class="font-semibold text-primary">Bản Đồ Hành Động</h3>
+        </div>
+        <div class="text-sm font-medium text-primary mb-3">${r.actionPlan.title}</div>
+        <div class="space-y-3">
+          ${r.actionPlan.items.map((item, idx) => `
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 bg-primary text-white rounded-sm flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">${idx + 1}</div>
+              <p class="text-sm text-primary leading-relaxed">${item}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <button onclick="saveResult()" id="btn-save" class="btn-primary w-full py-3 rounded-md font-medium text-sm">${state.saved ? '✓ Đã lưu kết quả' : 'Lưu kết quả'}</button>
+        <div class="flex gap-3">
+          <button onclick="shareResult()" class="btn-secondary flex-1 py-2.5 rounded-md text-sm font-medium">Chia sẻ</button>
+          <button onclick="retakeQuiz()" class="btn-secondary flex-1 py-2.5 rounded-md text-sm font-medium">Làm lại</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function saveResult() {
+  state.saved = true;
+  document.getElementById('btn-save').textContent = '✓ Đã lưu kết quả';
+  alert('Kết quả đã được lưu! (Demo - trong thực tế sẽ yêu cầu đăng nhập)');
+}
+function shareResult() {
+  const text = `Kết quả định hướng nghề nghiệp của tôi tại CareerMap:
+📍 ${state.location}
+🎯 Ngành phù hợp nhất: ${state.result.topIndustries[0].name} (${state.result.topIndustries[0].matchScore}%)
+📊 Sức khỏe thị trường: ${state.result.realityLabel}`;
+  if (navigator.share) navigator.share({ title: 'Kết quả CareerMap', text });
+  else navigator.clipboard.writeText(text).then(() => alert('Đã sao chép kết quả vào clipboard!'));
+}
+function retakeQuiz() {
+  state.step = 1; state.answers = []; state.currentQuestionIndex = 0; state.result = null; state.saved = false; state.aiUsed = false;
+  renderStep1();
+}
+
+document.addEventListener('click', (e) => {
+  const pl = document.getElementById('province-list');
+  const il = document.getElementById('industry-list');
+  const pi = document.getElementById('location-input');
+  const ii = document.getElementById('industry-input');
+  if (pl && !pl.contains(e.target) && e.target !== pi) pl.classList.add('hidden');
+  if (il && !il.contains(e.target) && e.target !== ii) il.classList.add('hidden');
+});
+
+renderStep1();
+</script>
+</body>
+</html>
